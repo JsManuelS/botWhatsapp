@@ -1,99 +1,179 @@
 const { createBot, createProvider, createFlow, addKeyword, EVENTS } = require('@bot-whatsapp/bot')
-require("dotenv").config
+require("dotenv").config()
 
 const QRPortalWeb = require('@bot-whatsapp/portal')
 const BaileysProvider = require('@bot-whatsapp/provider/baileys')
 //const MockAdapter = require('@bot-whatsapp/database/mock')
 const MongoAdapter = require('@bot-whatsapp/database/mongo')
-const path = require("path")
-const fs = require("fs")
-const chat = require("./chatGPT")
-const { handlerAI } = require("./whisper")
-
-const menuPath = path.join(__dirname, "mensajes", "menu.txt")
-const menu = fs.readFileSync(menuPath, "utf8")
-
-const pathConsultas = path.join(__dirname, "mensajes", "promptConsultas.txt")
-const promptConsultas = fs.readFileSync(pathConsultas, "utf8")
-
-const flowVoice = addKeyword(EVENTS.VOICE_NOTE).addAnswer("Esta es una nota de voz", null, async (ctx, ctxFn) => {
-    const text = await handlerAI(ctx)
-    const prompt = promptConsultas
-    const consulta = text
-    const answer = await chat(prompt, consulta)
-    await ctxFn.flowDynamic(answer.content)
-})
-
-const flowMenuRest = addKeyword(EVENTS.ACTION)
-    .addAnswer('Este es el menu', {
-        media: "https://www.ujamaaresort.org/wp-content/uploads/2018/01/Ujamaa-restaurant-menu.pdf"
-    })
-
-const flowReservar = addKeyword(EVENTS.ACTION)
-    .addAnswer('Este es el flow reservas: ww.hacetureserva.com')
 
 
-const flowConsultas = addKeyword(EVENTS.ACTION)
-    .addAnswer('Este es el flow consultas')
-    .addAnswer("Hace tu consulta", { capture: true }, async (ctx, ctxFn) => {
-        const prompt = promptConsultas
-        const consulta = ctx.body
-        const answer = await chat(prompt, consulta)
-        await ctxFn.flowDynamic(answer.content)
-    })
-
-
+//Bienvenida
 const flowWelcome = addKeyword(EVENTS.WELCOME)
-    .addAnswer("Este es el flujo Welcome", {
-        delay: 100,
-    },
-        async (ctx, ctxFn) => {
-            if (ctx.body.includes("Casas")) {
-                await ctxFn.flowDynamic("Escribiste casas")
-            } else {
-                await ctxFn.flowDynamic("Escribiste otra cosa")
-            }
-        })
+  .addAnswer(
+    "🎉¡Bienvenid@ a El Turronero! 🎉\n" +
+    "😄Nos alegra tenerte aquí y estamos listos para ofrecerte los mejores turrones. 🍬✨\n" +
+    "👇👇 Escribe la letra *C* para continuar🤤:\n"
+  )
 
-const menuFlow = addKeyword("Menu").addAnswer(
-    menu,
+
+//end Bienvenida
+// Segundo Comando
+const flowCarta = addKeyword('C.c')
+.addAnswer("📝Nuestro Productos Disponibles: 📜\n", {
+    media: "https://i.postimg.cc/XNrcq7d6/turron-joel-en-caja-16-turron-joel.png"
+  })
+  .addAnswer('"*RESERVAR POR WHATSAPP*" ')
+  .addAnswer('Escribe la Letra *R* para reserva tu Turron: "*RESERVAR POR AQUI*" ')
+  .addAnswer('"*🚚 ¡Entregas disponibles solo los Martes y Jueves por WhatsApp! 📅📲*"')
+  .addAnswer('"*RESERVAR POR PAGINA WEB*" ')
+  .addAnswer('🍽️ O Tambien ¡Haz tu reserva ahora! 👇\nAquí tienes el enlace:👇Reserva aquí👇 https://script.google.com/macros/s/AKfycbw55M5alwCk5OfUu1lRwkmAtDZxYKOv-z7Xl3uOO8ZzeCuKWEiMaUpjp1etYMbwDAlO2A/exec')
+  .addAnswer('"*🚚 ¡La entrega se realiza el día que desees o inmediata a través de la página web! 📅*"') 
+// end Comando 
+// const { addKeyword } = require('@bot-whatsapp/bot');
+let pedidos = [];
+
+// Funciones auxiliares
+const agregarPedido = (producto, precio) => {
+    pedidos.push({ producto, precio });
+    return totalPedidos();
+};
+
+const totalPedidos = () => {
+    return pedidos.reduce((total, item) => total + item.precio, 0);
+};
+
+// Flujo del menú de turrones
+const menuReserv = addKeyword(['R', 'r'])
+    .addAnswer([
+        '🔍 *MENÚ DE TURRONES*',
+        '',
+        '1️⃣ Turrón Joel - S/20.00',
+        
+        
+        '',
+        'Para hacer tu pedido, escribe el número de la opción que deseas.',
+        'Por ejemplo, escribe *1* para el Turrón Joel'
+    ],
     { capture: true },
-    async (ctx, { gotoFlow, fallBack, flowDynamic }) => {
-        if (!["1", "2", "3", "0"].includes(ctx.body)) {
-            return fallBack(
-                "Respuesta no válida, por favor selecciona una de las opciones."
-            );
+    async (ctx, { flowDynamic, gotoFlow }) => {
+        const opcion = ctx.body;
+        switch (opcion) {
+            case '1':
+                return gotoFlow(flowjoel);
+            default:
+                await flowDynamic('❌ Por favor, selecciona una opción válida (1, 2 o 3)');
+                return gotoFlow(menuReserv);
         }
-        switch (ctx.body) {
-            case "1":
-                return gotoFlow(flowMenuRest);
-            case "2":
-                return gotoFlow(flowReservar);
-            case "3":
-                return gotoFlow(flowConsultas);
-            case "0":
-                return await flowDynamic(
-                    "Saliendo... Puedes volver a acceder a este menú escribiendo '*Menu*'"
-                );
+    });
+
+
+const flowjoel = addKeyword(['1'])
+    .addAnswer('Has seleccionado el Turrón Joel', null, async (_, { flowDynamic }) => {
+        const total = agregarPedido('Turrón Joel', 20);
+        await flowDynamic([
+            '✅ Realizaste un pedido del Turrón Joel por S/ 20.00',
+            `💰 Total actual de tu pedido: S/ ${total.toFixed(2)}`
+        ]);
+    })
+    .addAnswer([
+        '¿Deseas pedir otro turrón?',
+        '👉 Escribe *1* para hacer otro pedido',
+        '👉 Escribe *No* para culminar tu pedido'
+    ],
+    { capture: true },
+    async (ctx, { gotoFlow, flowDynamic }) => {
+        const respuesta = ctx.body.toLowerCase();
+        if (respuesta === '1') {
+            await flowDynamic('¡Perfecto! Volvamos al menú de turrones. 📋');
+            return gotoFlow(menuReserv);
+        } else if (respuesta === '2') {
+            return gotoFlow(recolectarDatos);
+        } else {
+            await flowDynamic('❌ Por favor, responde *Si* o *No*');
+            return false;
         }
-    }
-);
+    });
+
+/*
+const flowsanjose = addKeyword(['2'])
+    .addAnswer('Has seleccionado el Turrón San José', null, async (_, { flowDynamic }) => {
+        const total = agregarPedido('Turrón San José', 38);
+        await flowDynamic([
+            '✅ Realizaste un pedido del Turrón San José por S/ 38.00',
+            `💰 Total actual de tu pedido: S/ ${total.toFixed(2)}`
+        ]);
+    })
+    .addAnswer([
+        '¿Deseas pedir otro turrón?',
+        '👉 Escribe *Si* para hacer otro pedido',
+        '👉 Escribe *No* culminar tu pedido'
+    ],
+    { capture: true },
+    async (ctx, { gotoFlow, flowDynamic }) => {
+        const respuesta = ctx.body.toLowerCase();
+        if (respuesta === 'si') {
+            await flowDynamic('¡Perfecto! Volvamos al menú de turrones. 📋');
+            return gotoFlow(menuReserv);
+        } else if (respuesta === 'no') {
+            return gotoFlow(recolectarDatos);
+        } else {
+            await flowDynamic('❌ Por favor, responde *Si* o *No*');
+            return false;
+        }
+    });
+
+// Flujo Doña Pepa
+const flowdoñapepa = addKeyword(['3'])
+    .addAnswer('Has seleccionado el Turrón Doña Pepa', null, async (_, { flowDynamic }) => {
+        const total = agregarPedido('Turrón Doña Pepa', 30);
+        await flowDynamic([
+            '✅ Realizaste un pedido del Turrón Doña Pepa por S/ 30.00',
+            `💰 Total actual de tu pedido: S/ ${total.toFixed(2)}`
+        ]);
+    })
+    .addAnswer([
+        '¿Deseas pedir otro turrón?',
+        '👉 Escribe *Si* para hacer otro pedido',
+        '👉 Escribe *No* para proceder con tus datos de contacto'
+    ],
+    { capture: true },
+    async (ctx, { gotoFlow, flowDynamic }) => {
+        const respuesta = ctx.body.toLowerCase();
+        if (respuesta === 'si') {
+            await flowDynamic('¡Perfecto! Volvamos al menú de turrones. 📋');
+            return gotoFlow(menuReserv);
+        } else if (respuesta === 'no') {
+            return gotoFlow(recolectarDatos);
+        } else {
+            await flowDynamic('❌ Por favor, responde *Si* o *No*');
+            return false;
+        }
+    });
+  
+*/
+
+    const recolectarDatos = addKeyword(['RECOLECTAR_DATOS'])
+    .addAnswer('🙌 *Gracias por tu compra* 🙌')
+    .addAnswer('Nos estaremos comunicando contigo en las próximas horas para coordinar la entrega de tu pedido. 📦✨')
+    .addAnswer('Si tienes alguna consulta, no dudes en escribirnos. ¡Que disfrutes de tu turrón! 😋.')         
 
 const main = async () => {
-    const adapterDB = new MongoAdapter({
+  const adapterDB = new MongoAdapter ({
         dbUri: process.env.MONGO_DB_URI,
-        dbName: "YoutubeTest"
-    })
-    const adapterFlow = createFlow([flowWelcome, menuFlow, flowMenuRest, flowReservar, flowConsultas, flowVoice])
-    const adapterProvider = createProvider(BaileysProvider)
+        dbName: "JsManuel"
+  })
 
-    createBot({
-        flow: adapterFlow,
-        provider: adapterProvider,
-        database: adapterDB,
-    })
+  
+  const adapterFlow = createFlow([flowWelcome,menuReserv,flowjoel,flowCarta,recolectarDatos])
+  const adapterProvider = createProvider(BaileysProvider)
 
-    QRPortalWeb()
+  createBot({
+    flow: adapterFlow,
+    provider: adapterProvider,
+    database: adapterDB,
+  })
+
+  QRPortalWeb()
 }
 
 main()
